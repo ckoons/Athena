@@ -19,9 +19,15 @@ try:
     from .graph.neo4j_adapter import Neo4jAdapter as GraphAdapter
     USING_NEO4J = True
 except ImportError:
-    # Fall back to in-memory adapter if Neo4j is not available
-    from .graph.memory_adapter import MemoryAdapter as GraphAdapter
-    USING_NEO4J = False
+    try:
+        # Attempt to use Hermes database services
+        from hermes.utils.database_helper import DatabaseClient
+        # If import succeeds, we'll still set up Neo4jAdapter later
+        USING_NEO4J = True
+    except ImportError:
+        # Fall back to in-memory adapter if neither Neo4j nor Hermes is available
+        from .graph.memory_adapter import MemoryAdapter as GraphAdapter
+        USING_NEO4J = False
 
 logger = logging.getLogger("athena.engine")
 
@@ -58,12 +64,21 @@ class KnowledgeEngine:
         # Initialize the graph adapter
         adapter_config = {
             "data_path": self.data_path,
-            "use_neo4j": USING_NEO4J
+            "component_id": "athena.knowledge",
+            "namespace": "athena_knowledge"
         }
         
         if USING_NEO4J:
-            logger.info("Using Neo4j graph database adapter")
+            # Import within function to handle both direct import and Hermes integration
+            try:
+                from .graph.neo4j_adapter import Neo4jAdapter as GraphAdapter
+                logger.info("Using Neo4j graph database adapter")
+            except ImportError:
+                # Fall back to in-memory adapter if Neo4j adapter isn't available yet but Hermes is
+                from .graph.memory_adapter import MemoryAdapter as GraphAdapter
+                logger.info("Neo4j adapter not found, using in-memory adapter for now")
         else:
+            from .graph.memory_adapter import MemoryAdapter as GraphAdapter
             logger.info("Using in-memory graph adapter with file persistence")
             
         try:

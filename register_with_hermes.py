@@ -46,71 +46,70 @@ if not hermes_dir or not os.path.exists(hermes_dir):
 # Add Hermes to the Python path
 sys.path.insert(0, hermes_dir)
 
+# Add Athena to the Python path if not already there
+athena_dir = str(Path(__file__).parent)
+if athena_dir not in sys.path:
+    sys.path.insert(0, athena_dir)
+
 # Try to import Hermes modules
 try:
-    from hermes.core.service_discovery import ServiceRegistry
-    from hermes.core.registration.client import RegistrationClient
+    from hermes.utils.registration_helper import register_component, unregister_component
     logger.info(f"Successfully imported Hermes modules from {hermes_dir}")
 except ImportError as e:
     logger.error(f"Error importing Hermes modules: {e}")
     logger.error(f"Make sure Hermes is properly installed and accessible")
     sys.exit(1)
 
+# Import the Athena knowledge adapter
+try:
+    from athena.integrations.hermes.knowledge_adapter import HermesKnowledgeAdapter
+    logger.info("Successfully imported Athena knowledge adapter")
+except ImportError as e:
+    logger.error(f"Error importing Athena modules: {e}")
+    logger.error(f"Make sure Athena is properly installed and accessible")
+    sys.exit(1)
+
 async def register_with_hermes():
     """Register Athena services with Hermes."""
     try:
-        # Initialize the service registry
-        registry = ServiceRegistry()
-        await registry.start()
+        # Get Hermes URL from environment or use default
+        hermes_url = os.environ.get("HERMES_URL", "http://localhost:8000")
+        logger.info(f"Using Hermes URL: {hermes_url}")
         
-        # Register the knowledge graph service
-        success = await registry.register(
-            service_id="athena-knowledge-graph",
-            name="Athena Knowledge Graph",
-            version="0.1.0",
-            endpoint="http://localhost:5600",  # Default endpoint for Athena API
-            capabilities=[
-                "knowledge_graph", 
-                "entity_management", 
-                "relationship_management", 
-                "path_finding",
-                "fact_verification"
-            ],
-            metadata={
-                "component": "athena",
-                "description": "Knowledge graph component of Tekton",
-                "adapter": "neo4j" if os.environ.get("ATHENA_USE_NEO4J") else "memory"
-            }
+        # Create the adapter
+        adapter = HermesKnowledgeAdapter(
+            component_id="athena.knowledge",
+            hermes_url=hermes_url,
+            auto_register=False  # We'll register manually
         )
         
-        if success:
-            logger.info("Registered Athena Knowledge Graph with Hermes service registry")
-        else:
-            logger.error("Failed to register Athena Knowledge Graph")
-            return False
+        # Initialize the engine
+        await adapter.initialize()
         
-        # Register the entity service specifically
-        success = await registry.register(
-            service_id="athena-entity",
-            name="Athena Entity Service",
-            version="0.1.0",
-            endpoint="http://localhost:5600/entity",
-            capabilities=["entity_management", "fact_storage"],
-            metadata={
-                "component": "athena",
-                "description": "Entity management service"
-            }
-        )
+        # Register with Hermes
+        success = await adapter.register_with_hermes()
         
         if success:
-            logger.info("Registered Athena Entity Service with Hermes service registry")
-        else:
-            logger.error("Failed to register Athena Entity Service")
-            return False
+            logger.info("Successfully registered Athena with Hermes")
             
-        await registry.stop()
-        logger.info("Registration with Hermes completed successfully")
-        return True
+            # Keep the registration alive until interrupted
+            try:
+                logger.info("Registration active. Press Ctrl+C to unregister and exit...")
+                # Run indefinitely until interrupted
+                while True:
+                    await asyncio.sleep(60)
+                    logger.info("Athena registration still active...")
+            except KeyboardInterrupt:
+                logger.info("Keyboard interrupt received, unregistering...")
+            finally:
+                # Unregister from Hermes before exiting
+                await adapter.shutdown()
+                logger.info("Athena unregistered from Hermes")
+            
+            return True
+        else:
+            logger.error("Failed to register Athena with Hermes")
+            return False
     except Exception as e:
         logger.error(f"Error during Hermes registration: {e}")
         return False
