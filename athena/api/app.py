@@ -2,19 +2,26 @@
 Athena API Application
 
 Main FastAPI application for Athena's REST API.
+Includes enhanced features from LightRAG integration.
 """
 
-from fastapi import FastAPI, HTTPException
+import logging
+from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 
 from .endpoints.knowledge_graph import router as knowledge_router
+from .endpoints.entities import router as entities_router
+from .endpoints.query import router as query_router
 from ..core.engine import get_knowledge_engine
+
+logger = logging.getLogger("athena.api")
 
 # Create FastAPI app
 app = FastAPI(
     title="Athena Knowledge Graph API",
-    description="API for interacting with the Athena knowledge graph",
-    version="0.1.0",
+    description="API for interacting with the Athena knowledge graph with LightRAG-enhanced features",
+    version="1.0.0",
 )
 
 # Add CORS middleware
@@ -28,11 +35,31 @@ app.add_middleware(
 
 # Include routers
 app.include_router(knowledge_router)
+app.include_router(entities_router)
+app.include_router(query_router)
+
+@app.exception_handler(Exception)
+async def global_exception_handler(request: Request, exc: Exception):
+    """Global exception handler for API"""
+    logger.error(f"Unhandled exception: {str(exc)}")
+    return JSONResponse(
+        status_code=500,
+        content={"detail": f"An unexpected error occurred: {str(exc)}"} 
+    )
 
 @app.get("/")
 async def root():
     """Root endpoint."""
-    return {"message": "Welcome to Athena Knowledge Graph API"}
+    return {
+        "message": "Welcome to Athena Knowledge Graph API",
+        "version": "1.0.0",
+        "features": [
+            "Enhanced entity management",
+            "Multiple query modes",
+            "Entity merging",
+            "Graph and vector integration"
+        ]
+    }
 
 @app.get("/health")
 async def health():
@@ -59,7 +86,7 @@ async def startup_event():
         if not engine.is_initialized:
             await engine.initialize()
     except Exception as e:
-        print(f"Error initializing knowledge engine: {e}")
+        logger.error(f"Error initializing knowledge engine: {e}")
 
 @app.on_event("shutdown")
 async def shutdown_event():
@@ -69,4 +96,4 @@ async def shutdown_event():
         if engine.is_initialized:
             await engine.shutdown()
     except Exception as e:
-        print(f"Error shutting down knowledge engine: {e}")
+        logger.error(f"Error shutting down knowledge engine: {e}")
