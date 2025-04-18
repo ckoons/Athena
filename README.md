@@ -1,84 +1,32 @@
-# Athena - Knowledge Graph Engine for Tekton
-
-<div align="center">
-  <img src="images/icon.jpg" alt="Athena Logo" width="800"/>
-  <h3>Tekton<br>AI Driven Orchestration</h3>
-</div>
-
-Athena is the knowledge management component of the Tekton ecosystem, providing structured knowledge representation, reasoning, and factual grounding for other components.
+# Athena
 
 ## Overview
 
-Athena stores, manages, and provides access to structured knowledge in the form of a knowledge graph. It supports:
+Athena is the knowledge graph system for the Tekton ecosystem. It manages entity relationships, provides reasoning capabilities, and enables knowledge representation and retrieval.
 
+## Key Features
+
+- Knowledge graph construction and maintenance
 - Entity and relationship management
-- Fact storage with provenance and confidence scoring
-- Knowledge graph traversal and querying
-- Multi-hop reasoning capabilities
-- Temporal reasoning (handling facts that change over time)
-- Integration with other Tekton components
+- Query engine for knowledge retrieval
+- Integration with vector databases
+- Reasoning capabilities
 
-## Architecture
-
-Athena consists of the following key components:
-
-- **Core Knowledge Engine**: Graph database integration and knowledge representation
-- **Query Processing**: SPARQL/Cypher generation and multi-hop reasoning
-- **Knowledge Acquisition**: Extraction pipelines and validation workflows
-- **API Layer**: REST and GraphQL interfaces for other components
-- **Integration Services**: Connectors to other Tekton components
-
-## Technology Stack
-
-- Python 3.9+
-- Neo4j for graph storage
-- FastAPI for API endpoints
-- SQLAlchemy for metadata management
-- Pydantic for data validation
-
-## Installation
+## Quick Start
 
 ```bash
-# Clone the repository
-git clone https://github.com/YourOrganization/Athena.git
+# Start Athena
+./scripts/tekton_launch --components athena
 
-# Install dependencies
-cd Athena
-pip install -e .
+# Register with Hermes
+python -m Athena/register_with_hermes.py
 ```
 
-## Usage
+## Documentation
 
-```python
-from athena.core import KnowledgeEngine
+For detailed documentation, see the following resources in the MetaData directory:
 
-# Initialize the knowledge engine
-engine = KnowledgeEngine()
-
-# Add entities and relationships
-person_id = engine.add_entity("Person", {"name": "Alan Turing"})
-field_id = engine.add_entity("Field", {"name": "Computer Science"})
-engine.add_relationship(person_id, "CONTRIBUTED_TO", field_id, {
-    "contribution": "Turing Machine",
-    "year": 1936,
-    "significance": "high"
-})
-
-# Query the knowledge graph
-results = engine.query("MATCH (p:Person)-[r:CONTRIBUTED_TO]->(f:Field) RETURN p, r, f")
-
-# Ask questions
-answer = engine.ask("Who contributed to Computer Science?")
-```
-
-## Integration with Tekton
-
-Athena integrates with other Tekton components:
-
-- **Ergon**: Provides knowledge tools for agents
-- **Engram**: Grounds memories with factual information
-- **Future components**: Provides knowledge backbone for reasoning
-
-## License
-
-[Specify your license here]
+- [Component Summaries](../MetaData/ComponentSummaries.md) - Overview of all Tekton components
+- [Tekton Architecture](../MetaData/TektonArchitecture.md) - Overall system architecture
+- [Component Integration](../MetaData/ComponentIntegration.md) - How components interact
+- [CLI Operations](../MetaData/CLI_Operations.md) - Command-line operations
