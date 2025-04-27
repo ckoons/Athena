@@ -76,27 +76,106 @@ class HermesKnowledgeAdapter:
             return False
             
         try:
-            # Define the capabilities of this component
-            capabilities = {
-                "knowledge_graph": {
-                    "entity_management": True,
-                    "relationship_management": True,
-                    "graph_querying": True,
-                    "fact_verification": True
-                },
-                "supported_entity_types": [
-                    "person", "organization", "location", "concept",
-                    "event", "product", "technology", "generic"
-                ]
+            # Get component port from environment or use default
+            component_port = os.environ.get("ATHENA_PORT", "8005")
+            
+            # Define the component information
+            component_info = {
+                "name": "athena",
+                "display_name": "Athena Knowledge Graph",
+                "description": "Knowledge graph system for entity and relationship management",
+                "version": "0.1.0",
+                "capabilities": [
+                    {
+                        "type": "knowledge_graph",
+                        "description": "Entity and relationship management in a graph database",
+                        "endpoints": [
+                            {
+                                "path": "/api/entities",
+                                "description": "Entity management endpoints",
+                                "methods": ["GET", "POST", "PUT", "DELETE"]
+                            },
+                            {
+                                "path": "/api/relationships",
+                                "description": "Relationship management endpoints",
+                                "methods": ["GET", "POST", "PUT", "DELETE"]
+                            },
+                            {
+                                "path": "/api/query",
+                                "description": "Knowledge graph query endpoints",
+                                "methods": ["POST"]
+                            },
+                            {
+                                "path": "/api/extraction",
+                                "description": "Entity extraction endpoints",
+                                "methods": ["POST"]
+                            }
+                        ]
+                    },
+                    {
+                        "type": "llm_enhancement",
+                        "description": "Enhanced LLM responses using knowledge graph",
+                        "endpoints": [
+                            {
+                                "path": "/api/llm/chat",
+                                "description": "Knowledge-enhanced chat",
+                                "methods": ["POST"]
+                            },
+                            {
+                                "path": "/api/llm/knowledge/enhance",
+                                "description": "Knowledge enhancement for LLM prompts",
+                                "methods": ["POST"]
+                            }
+                        ]
+                    },
+                    {
+                        "type": "visualization",
+                        "description": "Knowledge graph visualization endpoints",
+                        "endpoints": [
+                            {
+                                "path": "/api/visualization/graph",
+                                "description": "Get graph visualization data",
+                                "methods": ["GET"]
+                            },
+                            {
+                                "path": "/api/visualization/subgraph/{entity_id}",
+                                "description": "Get subgraph around an entity",
+                                "methods": ["GET"]
+                            }
+                        ]
+                    },
+                    {
+                        "type": "ui_component",
+                        "description": "Knowledge graph visualization and interaction UI component",
+                        "component_path": "/ui/athena-component.html",
+                        "component_name": "athena-component"
+                    }
+                ],
+                "dependencies": [
+                    {
+                        "component": "engram",
+                        "required": False,
+                        "features": ["memory_retrieval", "memory_storage"]
+                    },
+                    {
+                        "component": "rhetor",
+                        "required": True,
+                        "features": ["llm_inference"]
+                    }
+                ],
+                "api_url": f"http://localhost:{component_port}",
+                "ui": {
+                    "icon": "/images/icon.jpg",
+                    "color": "#4a86e8",
+                    "order": 5
+                }
             }
             
             # Register with Hermes
             success = await register_component(
                 component_id=self.component_id,
                 hermes_url=self.hermes_url,
-                capabilities=capabilities,
-                description="Athena Knowledge Graph component",
-                version="0.1.0"
+                component_info=component_info
             )
             
             if success:

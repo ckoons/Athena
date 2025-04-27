@@ -2,7 +2,7 @@
 Athena API Application
 
 Main FastAPI application for Athena's REST API.
-Includes enhanced features from LightRAG integration.
+Provides comprehensive knowledge graph functionality.
 """
 
 import logging
@@ -13,6 +13,8 @@ from fastapi.responses import JSONResponse
 from .endpoints.knowledge_graph import router as knowledge_router
 from .endpoints.entities import router as entities_router
 from .endpoints.query import router as query_router
+from .endpoints.visualization import router as visualization_router
+from .endpoints.llm_integration import router as llm_router
 from ..core.engine import get_knowledge_engine
 
 logger = logging.getLogger("athena.api")
@@ -20,7 +22,7 @@ logger = logging.getLogger("athena.api")
 # Create FastAPI app
 app = FastAPI(
     title="Athena Knowledge Graph API",
-    description="API for interacting with the Athena knowledge graph with LightRAG-enhanced features",
+    description="API for interacting with the Athena knowledge graph with graph visualization and LLM-enhanced features",
     version="1.0.0",
 )
 
@@ -37,6 +39,8 @@ app.add_middleware(
 app.include_router(knowledge_router)
 app.include_router(entities_router)
 app.include_router(query_router)
+app.include_router(visualization_router)
+app.include_router(llm_router)
 
 @app.exception_handler(Exception)
 async def global_exception_handler(request: Request, exc: Exception):
