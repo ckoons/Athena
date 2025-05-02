@@ -6,11 +6,20 @@ Provides REST API endpoints for LLM-powered knowledge graph operations.
 
 import logging
 import json
+import os
 from typing import Dict, List, Any, Optional, Union
 from fastapi import APIRouter, Depends, HTTPException, Query, Body, BackgroundTasks
 from fastapi.responses import StreamingResponse
 
-from tekton.core.llm_client import TektonLLMClient
+# Import enhanced tekton-llm-client features
+from tekton_llm_client import (
+    TektonLLMClient,
+    PromptTemplateRegistry, PromptTemplate, load_template,
+    JSONParser, parse_json, extract_json,
+    StreamHandler, collect_stream, stream_to_string,
+    StructuredOutputParser, OutputFormat,
+    ClientSettings, LLMSettings, load_settings, get_env
+)
 
 from athena.api.models.llm import (
     KnowledgeContextRequest,
@@ -26,10 +35,184 @@ from athena.core.engine import get_knowledge_engine
 from athena.core.entity import Entity
 from athena.core.relationship import Relationship
 
+# Set up logging
 logger = logging.getLogger("athena.api.llm_integration")
 
+# Set up router
 router = APIRouter(prefix="/llm", tags=["llm"])
-llm_client = TektonLLMClient(component_id="athena.knowledge")
+
+# Initialize prompt registry
+template_registry = PromptTemplateRegistry()
+
+# Initialize client settings
+client_settings = ClientSettings(
+    component_id="athena.knowledge",
+    base_url=get_env("TEKTON_LLM_URL", "http://localhost:8003"),
+    provider_id=get_env("TEKTON_LLM_PROVIDER", "anthropic"),
+    model_id=get_env("TEKTON_LLM_MODEL", "claude-3-sonnet-20240229"),
+    timeout=60,
+    max_retries=3,
+    use_fallback=True
+)
+
+# Create LLM client
+llm_client = TektonLLMClient(settings=client_settings)
+
+# Set up templates
+def initialize_templates():
+    """Initialize prompt templates for Athena."""
+    # Knowledge context template
+    template_registry.register_template(
+        "knowledge_chat",
+        PromptTemplate(
+            template="""
+            You are a knowledge-enhanced assistant with access to a knowledge graph.
+            Use the provided knowledge context to inform your responses.
+            
+            The knowledge context contains:
+            1. Entities related to the conversation
+            2. Relationships between entities
+            3. Properties and attributes of entities
+            
+            When referring to entities in the knowledge graph, use the format [[Entity Name:entity_id:entity_type]].
+            Reference specific entities and relationships when appropriate.
+            If you don't know something based on the provided knowledge, say so rather than making up information.
+            
+            Knowledge Context:
+            {knowledge_context}
+            """,
+            output_format=OutputFormat.TEXT
+        )
+    )
+    
+    # Entity extraction template
+    template_registry.register_template(
+        "entity_extraction",
+        PromptTemplate(
+            template="""
+            Entity types to extract: {entity_types}
+            
+            Text: {text}
+            """,
+            output_format=OutputFormat.JSON
+        )
+    )
+    
+    # Entity extraction system prompt
+    template_registry.register_template(
+        "entity_extraction_system",
+        PromptTemplate(
+            template="""
+            You are an entity extraction assistant specialized in named entity recognition.
+            Extract entities from the provided text and categorize them by type.
+            
+            For each entity, include:
+            1. Entity name (canonical form)
+            2. Entity type (person, organization, location, concept, event, product, technology, or other)
+            3. Any aliases mentioned in the text
+            4. Any attributes or properties mentioned
+            5. Confidence level (high, medium, low)
+            
+            Format your response as JSON with an "entities" array containing each entity.
+            Each entity should have the following structure:
+            {
+                "name": "Entity Name",
+                "type": "entity_type",
+                "aliases": ["Alias 1", "Alias 2"],
+                "properties": {"property1": "value1", "property2": "value2"},
+                "confidence": 0.9
+            }
+            
+            Only extract entity types specified in the entity_types list, if provided.
+            Otherwise, extract all entities you can identify.
+            """,
+            output_format=OutputFormat.JSON
+        )
+    )
+    
+    # Relationship inference template
+    template_registry.register_template(
+        "relationship_inference",
+        PromptTemplate(
+            template="Relationship types to infer: {relationship_types}\n\nEntities: {entities_json}",
+            output_format=OutputFormat.JSON
+        )
+    )
+    
+    # Relationship inference system prompt
+    template_registry.register_template(
+        "relationship_inference_system",
+        PromptTemplate(
+            template="""
+            You are a knowledge relationship inference assistant.
+            Analyze the provided entities and identify potential relationships between them.
+            
+            For each relationship, include:
+            1. Source entity ID
+            2. Target entity ID
+            3. Relationship type (e.g., works_for, knows, located_in, created, part_of, uses)
+            4. Direction (outgoing, incoming, bidirectional)
+            5. Confidence level (high, medium, low as a number between 0 and 1)
+            6. Any properties or attributes of the relationship
+            
+            Format your response as JSON with a "relationships" array containing each relationship.
+            Each relationship should have the following structure:
+            {
+                "source_id": "entity_id_1",
+                "target_id": "entity_id_2",
+                "type": "relationship_type",
+                "direction": "outgoing",
+                "confidence": 0.8,
+                "properties": {"property1": "value1", "property2": "value2"}
+            }
+            
+            Only infer relationship types specified in the relationship_types list, if provided.
+            Otherwise, infer all relationships you can identify.
+            """,
+            output_format=OutputFormat.JSON
+        )
+    )
+    
+    # Entity explanation template
+    template_registry.register_template(
+        "entity_explanation",
+        PromptTemplate(
+            template="Generate an explanation for entity: {entity_name} (ID: {entity_id})\n\nContext: {context_json}",
+            output_format=OutputFormat.TEXT
+        )
+    )
+    
+    # Query translation template
+    template_registry.register_template(
+        "query_translation",
+        PromptTemplate(
+            template="Natural language query: {query}\n\nGraph schema: {schema_json}",
+            output_format=OutputFormat.JSON
+        )
+    )
+    
+    # Query translation system prompt
+    template_registry.register_template(
+        "query_translation_system",
+        PromptTemplate(
+            template="""
+            You are a knowledge graph query translator.
+            Translate the natural language query into a Cypher query for Neo4j.
+            
+            Use the provided graph schema to ensure your query uses correct entity types,
+            relationship types, and property names.
+            
+            Format your response as JSON with:
+            1. cypher_query: The translated Cypher query
+            2. parameters: Any parameters for the query
+            3. explanation: Brief explanation of what the query does
+            """,
+            output_format=OutputFormat.JSON
+        )
+    )
+
+# Initialize templates
+initialize_templates()
 
 @router.post("/knowledge/context", response_model=KnowledgeContextResponse)
 async def get_knowledge_context(request: KnowledgeContextRequest):
@@ -99,30 +282,30 @@ async def knowledge_chat(request: KnowledgeChatRequest):
             )
         )
         
-        # Construct system prompt with knowledge context
-        system_prompt = f"""
-        You are a knowledge-enhanced assistant with access to a knowledge graph.
-        Use the provided knowledge context to inform your responses.
+        # Get knowledge chat template
+        template = template_registry.get_template("knowledge_chat")
         
-        The knowledge context contains:
-        1. Entities related to the conversation
-        2. Relationships between entities
-        3. Properties and attributes of entities
+        # Format template values
+        template_values = {
+            "knowledge_context": json.dumps(knowledge_context.context, indent=2)
+        }
         
-        When referring to entities in the knowledge graph, use the format [[Entity Name:entity_id:entity_type]].
-        Reference specific entities and relationships when appropriate.
-        If you don't know something based on the provided knowledge, say so rather than making up information.
+        # Generate system prompt
+        system_prompt = template.format(**template_values)
         
-        Knowledge Context:
-        {json.dumps(knowledge_context.context, indent=2)}
-        """
+        # Set LLM settings
+        llm_settings = LLMSettings(
+            temperature=0.7,
+            max_tokens=1000,
+            model=request.model,
+            provider=request.provider
+        )
         
         # Generate LLM response
         llm_response = await llm_client.generate_text(
             prompt=request.query,
             system_prompt=system_prompt,
-            model=request.model,
-            provider=request.provider
+            settings=llm_settings
         )
         
         # Extract entities mentioned in the response
@@ -167,44 +350,54 @@ async def stream_knowledge_chat(request: KnowledgeChatRequest, background_tasks:
                 )
             )
             
-            # Construct system prompt with knowledge context
-            system_prompt = f"""
-            You are a knowledge-enhanced assistant with access to a knowledge graph.
-            Use the provided knowledge context to inform your responses.
+            # Get knowledge chat template
+            template = template_registry.get_template("knowledge_chat")
             
-            The knowledge context contains:
-            1. Entities related to the conversation
-            2. Relationships between entities
-            3. Properties and attributes of entities
+            # Format template values
+            template_values = {
+                "knowledge_context": json.dumps(knowledge_context.context, indent=2)
+            }
             
-            When referring to entities in the knowledge graph, use the format [[Entity Name:entity_id:entity_type]].
-            Reference specific entities and relationships when appropriate.
-            If you don't know something based on the provided knowledge, say so rather than making up information.
+            # Generate system prompt
+            system_prompt = template.format(**template_values)
             
-            Knowledge Context:
-            {json.dumps(knowledge_context.context, indent=2)}
-            """
+            # Set LLM settings
+            llm_settings = LLMSettings(
+                temperature=0.7,
+                max_tokens=1000,
+                model=request.model,
+                provider=request.provider
+            )
             
             # Track which entities are mentioned
             mentioned_entities = set()
             
-            # Stream the response
-            async for chunk in llm_client.stream_text(
-                prompt=request.query,
-                system_prompt=system_prompt,
-                model=request.model,
-                provider=request.provider
-            ):
+            # Create streaming handler function
+            async def handle_stream_chunk(chunk):
                 # Check for entity mentions in this chunk
                 for entity in knowledge_context.entities:
-                    if entity.name.lower() in chunk.content.lower():
+                    if entity.name.lower() in chunk.lower():
                         mentioned_entities.add(entity.entity_id)
                 
                 # Yield the chunk
                 yield json.dumps({
-                    "content": chunk.content,
+                    "content": chunk,
                     "done": False
                 }) + "\n"
+            
+            # Create stream handler
+            stream_handler = StreamHandler(callback_fn=handle_stream_chunk)
+            
+            # Stream the response
+            response_stream = await llm_client.generate_text(
+                prompt=request.query,
+                system_prompt=system_prompt,
+                settings=llm_settings,
+                streaming=True
+            )
+            
+            # Process the stream
+            await stream_handler.process_stream(response_stream)
             
             # Final message with entity information
             entities_data = [
@@ -240,88 +433,62 @@ async def extract_entities(request: EntityExtractionRequest):
     engine = await get_knowledge_engine()
     
     try:
-        # Construct system prompt for entity extraction
-        system_prompt = """
-        You are an entity extraction assistant specialized in named entity recognition.
-        Extract entities from the provided text and categorize them by type.
+        # Get entity extraction template and system prompt
+        template = template_registry.get_template("entity_extraction")
+        system_template = template_registry.get_template("entity_extraction_system")
         
-        For each entity, include:
-        1. Entity name (canonical form)
-        2. Entity type (person, organization, location, concept, event, product, technology, or other)
-        3. Any aliases mentioned in the text
-        4. Any attributes or properties mentioned
-        5. Confidence level (high, medium, low)
-        
-        Format your response as JSON with an "entities" array containing each entity.
-        Each entity should have the following structure:
-        {
-            "name": "Entity Name",
-            "type": "entity_type",
-            "aliases": ["Alias 1", "Alias 2"],
-            "properties": {"property1": "value1", "property2": "value2"},
-            "confidence": 0.9
+        # Format template values
+        entity_types_str = ", ".join(request.entity_types) if request.entity_types else "all"
+        template_values = {
+            "entity_types": entity_types_str,
+            "text": request.text
         }
         
-        Only extract entity types specified in the entity_types list, if provided.
-        Otherwise, extract all entities you can identify.
-        """
+        # Generate prompt and system prompt
+        prompt = template.format(**template_values)
+        system_prompt = system_template.format()
         
-        prompt = request.text
-        if request.entity_types:
-            entity_types_str = ", ".join(request.entity_types)
-            prompt = f"Entity types to extract: {entity_types_str}\n\nText: {request.text}"
+        # Set LLM settings
+        llm_settings = LLMSettings(
+            temperature=0.3,
+            max_tokens=1500,
+            model=request.model,
+            provider=request.provider
+        )
         
         # Call LLM
         llm_response = await llm_client.generate_text(
             prompt=prompt,
             system_prompt=system_prompt,
-            model=request.model,
-            provider=request.provider,
-            response_format="json"
+            settings=llm_settings
         )
         
-        # Parse LLM response
-        try:
-            # Extract JSON from response
-            json_content = llm_response.content
-            if isinstance(json_content, str):
-                # Find JSON in the string if needed
-                if "{" in json_content and "}" in json_content:
-                    start = json_content.find("{")
-                    end = json_content.rfind("}") + 1
-                    json_content = json_content[start:end]
-                
-                response_data = json.loads(json_content)
-            else:
-                response_data = json_content
-            
-            # Create Entity objects from extracted data
-            entities = []
-            for entity_data in response_data.get("entities", []):
-                entity = Entity(
-                    entity_type=entity_data.get("type", "unknown"),
-                    name=entity_data.get("name", ""),
-                    properties=entity_data.get("properties", {}),
-                    confidence=entity_data.get("confidence", 0.5),
-                    source="llm_extraction"
-                )
-                
-                # Add aliases
-                for alias in entity_data.get("aliases", []):
-                    entity.add_alias(alias)
-                
-                entities.append(entity)
-            
-            return EntityExtractionResponse(
-                text=request.text,
-                entities=entities,
-                raw_extraction=response_data
-            )
+        # Parse LLM response using JSONParser
+        json_parser = JSONParser()
+        response_data = json_parser.parse(llm_response.content)
         
-        except json.JSONDecodeError as e:
-            logger.error(f"Error parsing LLM response as JSON: {e}")
-            logger.debug(f"Raw response: {llm_response.content}")
-            raise HTTPException(status_code=500, detail="Failed to parse entity extraction response")
+        # Create Entity objects from extracted data
+        entities = []
+        for entity_data in response_data.get("entities", []):
+            entity = Entity(
+                entity_type=entity_data.get("type", "unknown"),
+                name=entity_data.get("name", ""),
+                properties=entity_data.get("properties", {}),
+                confidence=entity_data.get("confidence", 0.5),
+                source="llm_extraction"
+            )
+            
+            # Add aliases
+            for alias in entity_data.get("aliases", []):
+                entity.add_alias(alias)
+            
+            entities.append(entity)
+        
+        return EntityExtractionResponse(
+            text=request.text,
+            entities=entities,
+            raw_extraction=response_data
+        )
     
     except Exception as e:
         logger.error(f"Error extracting entities: {e}")
@@ -347,94 +514,64 @@ async def infer_relationships(request: RelationshipInferenceRequest):
         if not entities:
             raise HTTPException(status_code=400, detail="No valid entities found")
         
-        # Construct system prompt for relationship inference
-        system_prompt = """
-        You are a knowledge relationship inference assistant.
-        Analyze the provided entities and identify potential relationships between them.
+        # Get relationship inference templates
+        template = template_registry.get_template("relationship_inference")
+        system_template = template_registry.get_template("relationship_inference_system")
         
-        For each relationship, include:
-        1. Source entity ID
-        2. Target entity ID
-        3. Relationship type (e.g., works_for, knows, located_in, created, part_of, uses)
-        4. Direction (outgoing, incoming, bidirectional)
-        5. Confidence level (high, medium, low as a number between 0 and 1)
-        6. Any properties or attributes of the relationship
-        
-        Format your response as JSON with a "relationships" array containing each relationship.
-        Each relationship should have the following structure:
-        {
-            "source_id": "entity_id_1",
-            "target_id": "entity_id_2",
-            "type": "relationship_type",
-            "direction": "outgoing",
-            "confidence": 0.8,
-            "properties": {"property1": "value1", "property2": "value2"}
+        # Format template values
+        relationship_types_str = ", ".join(request.relationship_types) if request.relationship_types else "all"
+        entities_json = json.dumps(entities, indent=2)
+        template_values = {
+            "relationship_types": relationship_types_str,
+            "entities_json": entities_json
         }
         
-        Only infer relationship types specified in the relationship_types list, if provided.
-        Otherwise, infer all relationships you can identify.
-        """
+        # Generate prompt and system prompt
+        prompt = template.format(**template_values)
+        system_prompt = system_template.format()
         
-        # Prepare prompt with entity information
-        entities_json = json.dumps(entities, indent=2)
-        prompt = f"Entities: {entities_json}"
-        
-        if request.relationship_types:
-            relationship_types_str = ", ".join(request.relationship_types)
-            prompt = f"Relationship types to infer: {relationship_types_str}\n\n{prompt}"
+        # Set LLM settings
+        llm_settings = LLMSettings(
+            temperature=0.3,
+            max_tokens=1500,
+            model=request.model,
+            provider=request.provider
+        )
         
         # Call LLM
         llm_response = await llm_client.generate_text(
             prompt=prompt,
             system_prompt=system_prompt,
-            model=request.model,
-            provider=request.provider,
-            response_format="json"
+            settings=llm_settings
         )
         
-        # Parse LLM response
-        try:
-            # Extract JSON from response
-            json_content = llm_response.content
-            if isinstance(json_content, str):
-                # Find JSON in the string if needed
-                if "{" in json_content and "}" in json_content:
-                    start = json_content.find("{")
-                    end = json_content.rfind("}") + 1
-                    json_content = json_content[start:end]
-                
-                response_data = json.loads(json_content)
-            else:
-                response_data = json_content
-            
-            # Create Relationship objects from inferred data
-            relationships = []
-            for rel_data in response_data.get("relationships", []):
-                relationship = Relationship(
-                    relationship_type=rel_data.get("type", "generic"),
-                    source_id=rel_data.get("source_id", ""),
-                    target_id=rel_data.get("target_id", ""),
-                    properties=rel_data.get("properties", {}),
-                    confidence=rel_data.get("confidence", 0.5),
-                    source="llm_inference"
-                )
-                
-                # Set directionality
-                if rel_data.get("direction") == "bidirectional":
-                    relationship.set_bidirectional(True)
-                
-                relationships.append(relationship)
-            
-            return RelationshipInferenceResponse(
-                entity_ids=request.entity_ids,
-                relationships=relationships,
-                raw_inference=response_data
-            )
+        # Parse LLM response using JSONParser
+        json_parser = JSONParser()
+        response_data = json_parser.parse(llm_response.content)
         
-        except json.JSONDecodeError as e:
-            logger.error(f"Error parsing LLM response as JSON: {e}")
-            logger.debug(f"Raw response: {llm_response.content}")
-            raise HTTPException(status_code=500, detail="Failed to parse relationship inference response")
+        # Create Relationship objects from inferred data
+        relationships = []
+        for rel_data in response_data.get("relationships", []):
+            relationship = Relationship(
+                relationship_type=rel_data.get("type", "generic"),
+                source_id=rel_data.get("source_id", ""),
+                target_id=rel_data.get("target_id", ""),
+                properties=rel_data.get("properties", {}),
+                confidence=rel_data.get("confidence", 0.5),
+                source="llm_inference"
+            )
+            
+            # Set directionality
+            if rel_data.get("direction") == "bidirectional":
+                relationship.set_bidirectional(True)
+            
+            relationships.append(relationship)
+        
+        return RelationshipInferenceResponse(
+            entity_ids=request.entity_ids,
+            relationships=relationships,
+            raw_inference=response_data
+        )
     
     except Exception as e:
         logger.error(f"Error inferring relationships: {e}")
@@ -470,31 +607,32 @@ async def explain_entity(entity_id: str, model: str = None, provider: str = None
             ]
         }
         
-        # Construct system prompt
-        system_prompt = """
-        You are a knowledge graph analysis assistant.
-        Generate an explanation of the provided entity based on its properties and relationships.
+        # Get entity explanation template
+        template = template_registry.get_template("entity_explanation")
         
-        Your explanation should include:
-        1. A clear description of what the entity is
-        2. Analysis of its key properties and attributes
-        3. Discussion of its relationships with other entities
-        4. Any insights or implications that can be derived from the knowledge graph
+        # Format template values
+        template_values = {
+            "entity_name": entity.name,
+            "entity_id": entity.entity_id,
+            "context_json": json.dumps(context, indent=2)
+        }
         
-        Keep your explanation concise, factual, and based only on the provided information.
-        If certain information is missing, acknowledge the gaps rather than making assumptions.
-        """
+        # Generate prompt
+        prompt = template.format(**template_values)
         
-        # Prepare prompt
-        context_json = json.dumps(context, indent=2)
-        prompt = f"Generate an explanation for entity: {entity.name} (ID: {entity.entity_id})\n\nContext: {context_json}"
+        # Set LLM settings
+        llm_settings = LLMSettings(
+            temperature=0.7,
+            max_tokens=1000,
+            model=model,
+            provider=provider
+        )
         
         # Call LLM
         llm_response = await llm_client.generate_text(
             prompt=prompt,
-            system_prompt=system_prompt,
-            model=model,
-            provider=provider
+            system_prompt="You are a knowledge graph analysis assistant. Generate an explanation of the provided entity based on its properties and relationships.",
+            settings=llm_settings
         )
         
         return {
@@ -521,59 +659,45 @@ async def translate_query(query: str, model: str = None, provider: str = None):
         # Get schema information for context
         schema = await engine.get_schema()
         
-        # Construct system prompt
-        system_prompt = """
-        You are a knowledge graph query translator.
-        Translate the natural language query into a Cypher query for Neo4j.
+        # Get query translation templates
+        template = template_registry.get_template("query_translation")
+        system_template = template_registry.get_template("query_translation_system")
         
-        Use the provided graph schema to ensure your query uses correct entity types,
-        relationship types, and property names.
+        # Format template values
+        template_values = {
+            "query": query,
+            "schema_json": json.dumps(schema, indent=2)
+        }
         
-        Format your response as JSON with:
-        1. cypher_query: The translated Cypher query
-        2. parameters: Any parameters for the query
-        3. explanation: Brief explanation of what the query does
-        """
+        # Generate prompt and system prompt
+        prompt = template.format(**template_values)
+        system_prompt = system_template.format()
         
-        # Prepare prompt
-        schema_json = json.dumps(schema, indent=2)
-        prompt = f"Natural language query: {query}\n\nGraph schema: {schema_json}"
+        # Set LLM settings
+        llm_settings = LLMSettings(
+            temperature=0.3,
+            max_tokens=1000,
+            model=model,
+            provider=provider
+        )
         
         # Call LLM
         llm_response = await llm_client.generate_text(
             prompt=prompt,
             system_prompt=system_prompt,
-            model=model,
-            provider=provider,
-            response_format="json"
+            settings=llm_settings
         )
         
-        # Parse LLM response
-        try:
-            # Extract JSON from response
-            json_content = llm_response.content
-            if isinstance(json_content, str):
-                # Find JSON in the string if needed
-                if "{" in json_content and "}" in json_content:
-                    start = json_content.find("{")
-                    end = json_content.rfind("}") + 1
-                    json_content = json_content[start:end]
-                
-                response_data = json.loads(json_content)
-            else:
-                response_data = json_content
-            
-            return {
-                "natural_query": query,
-                "cypher_query": response_data.get("cypher_query", ""),
-                "parameters": response_data.get("parameters", {}),
-                "explanation": response_data.get("explanation", "")
-            }
+        # Parse LLM response using JSONParser
+        json_parser = JSONParser()
+        response_data = json_parser.parse(llm_response.content)
         
-        except json.JSONDecodeError as e:
-            logger.error(f"Error parsing LLM response as JSON: {e}")
-            logger.debug(f"Raw response: {llm_response.content}")
-            raise HTTPException(status_code=500, detail="Failed to parse query translation response")
+        return {
+            "natural_query": query,
+            "cypher_query": response_data.get("cypher_query", ""),
+            "parameters": response_data.get("parameters", {}),
+            "explanation": response_data.get("explanation", "")
+        }
     
     except Exception as e:
         logger.error(f"Error translating query: {e}")
