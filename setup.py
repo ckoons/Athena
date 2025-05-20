@@ -31,6 +31,9 @@ setup(
         "python-dotenv>=0.19.0",
         "requests>=2.26.0",
         "aiohttp>=3.8.0",
+        
+        # Tekton core integration
+        "tekton-core>=0.1.0",  # FastMCP is included in tekton-core
     ],
     extras_require={
         "dev": [

@@ -11,6 +11,17 @@ import asyncio
 from typing import Dict, Any, List, Optional, Set, Tuple, Union
 from pathlib import Path
 
+# Import FastMCP integration if available
+try:
+    from tekton.mcp.fastmcp import (
+        mcp_tool,
+        mcp_capability,
+        MCPClient
+    )
+    fastmcp_available = True
+except ImportError:
+    fastmcp_available = False
+
 from .entity import Entity
 from .relationship import Relationship
 
@@ -48,6 +59,8 @@ class KnowledgeEngine:
         self.data_path = data_path or os.path.expanduser("~/.tekton/data/athena")
         self.is_initialized = False
         self.adapter = None
+        self.entity_manager = None
+        self.query_engine = None
         
     async def initialize(self) -> bool:
         """
@@ -90,6 +103,29 @@ class KnowledgeEngine:
             
             self.is_initialized = True
             logger.info("Athena Knowledge Engine initialized successfully")
+            
+            # Initialize MCP integration if available
+            if fastmcp_available:
+                try:
+                    # Initialize entity manager and query engine for MCP integration
+                    # We import them here to avoid circular imports
+                    from .entity_manager import EntityManager
+                    from .query_engine import QueryEngine
+                    
+                    # Create instances if they don't exist
+                    if not self.entity_manager:
+                        self.entity_manager = EntityManager(self)
+                    if not self.query_engine:
+                        self.query_engine = QueryEngine(self)
+                    
+                    # Initialize MCP integration
+                    await self.entity_manager.initialize_mcp()
+                    await self.query_engine.initialize_mcp()
+                    
+                    logger.info("Initialized FastMCP integration successfully")
+                except Exception as e:
+                    logger.error(f"Error initializing MCP integration: {e}")
+            
             return True
         except Exception as e:
             logger.error(f"Failed to initialize knowledge engine: {e}")

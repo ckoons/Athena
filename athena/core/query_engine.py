@@ -9,11 +9,26 @@ import logging
 import asyncio
 from typing import Dict, List, Any, Optional, Union, Set, Tuple
 
+# Import FastMCP integration if available
+try:
+    from tekton.mcp.fastmcp import (
+        mcp_tool,
+        mcp_capability,
+        MCPClient
+    )
+    from tekton.mcp.fastmcp.utils.tooling import ToolRegistry
+    fastmcp_available = True
+except ImportError:
+    fastmcp_available = False
+
 from tekton.core.query.modes import QueryMode, QueryParameters
 
 from .engine import KnowledgeEngine
 from .entity import Entity
 from .relationship import Relationship
+
+# Import MCP tools for registration
+from .mcp import register_query_tools
 
 logger = logging.getLogger("athena.query_engine")
 
@@ -37,6 +52,21 @@ class QueryEngine:
             engine: Reference to the knowledge engine
         """
         self.engine = engine
+        self.tool_registry = None
+        
+        # Initialize FastMCP tool registry if available
+        if fastmcp_available:
+            self.tool_registry = ToolRegistry(component_name="athena")
+            
+    async def initialize_mcp(self) -> None:
+        """Initialize MCP integration for the query engine."""
+        if fastmcp_available and self.tool_registry:
+            try:
+                # Register query tools
+                await register_query_tools(self, self.tool_registry)
+                logger.info("Registered MCP query tools")
+            except Exception as e:
+                logger.error(f"Error registering MCP query tools: {e}")
         
     async def query(self, question: str, parameters: QueryParameters = None) -> Dict[str, Any]:
         """

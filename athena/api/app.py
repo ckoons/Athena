@@ -15,6 +15,7 @@ from .endpoints.entities import router as entities_router
 from .endpoints.query import router as query_router
 from .endpoints.visualization import router as visualization_router
 from .endpoints.llm_integration import router as llm_router
+from .endpoints.mcp import mcp_router
 from ..core.engine import get_knowledge_engine
 
 logger = logging.getLogger("athena.api")
@@ -41,6 +42,7 @@ app.include_router(entities_router)
 app.include_router(query_router)
 app.include_router(visualization_router)
 app.include_router(llm_router)
+app.include_router(mcp_router)  # Add MCP router
 
 @app.exception_handler(Exception)
 async def global_exception_handler(request: Request, exc: Exception):
@@ -61,7 +63,8 @@ async def root():
             "Enhanced entity management",
             "Multiple query modes",
             "Entity merging",
-            "Graph and vector integration"
+            "Graph and vector integration",
+            "FastMCP integration"  # Add FastMCP feature
         ]
     }
 
@@ -89,6 +92,18 @@ async def startup_event():
         engine = await get_knowledge_engine()
         if not engine.is_initialized:
             await engine.initialize()
+            
+        # Log FastMCP initialization
+        try:
+            from tekton.mcp.fastmcp import (
+                mcp_tool,
+                mcp_capability,
+                MCPClient
+            )
+            logger.info("FastMCP is available and initialized")
+        except ImportError:
+            logger.warning("FastMCP is not available - MCP functionality will be limited")
+            
     except Exception as e:
         logger.error(f"Error initializing knowledge engine: {e}")
 

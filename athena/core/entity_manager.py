@@ -9,9 +9,24 @@ import logging
 from typing import Dict, List, Any, Optional, Union, Set, Tuple, Literal
 from datetime import datetime
 
+# Import FastMCP integration if available
+try:
+    from tekton.mcp.fastmcp import (
+        mcp_tool,
+        mcp_capability,
+        MCPClient
+    )
+    from tekton.mcp.fastmcp.utils.tooling import ToolRegistry
+    fastmcp_available = True
+except ImportError:
+    fastmcp_available = False
+
 from .entity import Entity
 from .relationship import Relationship
 from .engine import KnowledgeEngine
+
+# Import MCP tools for registration
+from .mcp import register_entity_tools
 
 logger = logging.getLogger("athena.entity_manager")
 
@@ -47,6 +62,21 @@ class EntityManager:
             engine: Reference to the knowledge engine
         """
         self.engine = engine
+        self.tool_registry = None
+        
+        # Initialize FastMCP tool registry if available
+        if fastmcp_available:
+            self.tool_registry = ToolRegistry(component_name="athena")
+            
+    async def initialize_mcp(self) -> None:
+        """Initialize MCP integration for the entity manager."""
+        if fastmcp_available and self.tool_registry:
+            try:
+                # Register entity management tools
+                await register_entity_tools(self, self.tool_registry)
+                logger.info("Registered MCP entity management tools")
+            except Exception as e:
+                logger.error(f"Error registering MCP entity tools: {e}")
         
     async def merge_entities(
         self,
