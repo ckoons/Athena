@@ -5,7 +5,7 @@ Provides Pydantic models for graph visualization requests and responses.
 """
 
 from typing import Dict, List, Any, Optional, Union
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ConfigDict
 from enum import Enum
 from datetime import datetime
 
@@ -40,6 +40,8 @@ class GraphVisualizationResponse(BaseModel):
     entities: List[Entity] = Field(default_factory=list, description="Entities in the visualization")
     relationships: List[Relationship] = Field(default_factory=list, description="Relationships in the visualization")
     layout: VisualizationLayout = Field(VisualizationLayout.force_directed, description="Selected graph layout algorithm")
+    
+    model_config = ConfigDict(arbitrary_types_allowed=True)
 
 
 class SubgraphRequest(BaseModel):
@@ -60,6 +62,8 @@ class SubgraphResponse(BaseModel):
     entities: List[Entity] = Field(default_factory=list, description="Entities in the subgraph")
     relationships: List[Relationship] = Field(default_factory=list, description="Relationships in the subgraph")
     layout: VisualizationLayout = Field(VisualizationLayout.force_directed, description="Selected graph layout algorithm")
+    
+    model_config = ConfigDict(arbitrary_types_allowed=True)
 
 
 class ExportFormat(str, Enum):

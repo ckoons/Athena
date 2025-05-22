@@ -44,10 +44,10 @@ router = APIRouter(prefix="/llm", tags=["llm"])
 # Initialize prompt registry
 template_registry = PromptTemplateRegistry()
 
-# Initialize client settings
-client_settings = ClientSettings(
+# Create LLM client
+llm_client = TektonLLMClient(
     component_id="athena.knowledge",
-    base_url=get_env("TEKTON_LLM_URL", "http://localhost:8003"),
+    rhetor_url=get_env("TEKTON_LLM_URL", "http://localhost:8003"),
     provider_id=get_env("TEKTON_LLM_PROVIDER", "anthropic"),
     model_id=get_env("TEKTON_LLM_MODEL", "claude-3-sonnet-20240229"),
     timeout=60,
@@ -55,16 +55,13 @@ client_settings = ClientSettings(
     use_fallback=True
 )
 
-# Create LLM client
-llm_client = TektonLLMClient(settings=client_settings)
-
 # Set up templates
 def initialize_templates():
     """Initialize prompt templates for Athena."""
     # Knowledge context template
-    template_registry.register_template(
-        "knowledge_chat",
+    template_registry.register(
         PromptTemplate(
+            name="knowledge_chat",
             template="""
             You are a knowledge-enhanced assistant with access to a knowledge graph.
             Use the provided knowledge context to inform your responses.
@@ -80,28 +77,26 @@ def initialize_templates():
             
             Knowledge Context:
             {knowledge_context}
-            """,
-            output_format=OutputFormat.TEXT
+            """
         )
     )
     
     # Entity extraction template
-    template_registry.register_template(
-        "entity_extraction",
+    template_registry.register(
         PromptTemplate(
+            name="entity_extraction",
             template="""
             Entity types to extract: {entity_types}
             
             Text: {text}
-            """,
-            output_format=OutputFormat.JSON
+            """
         )
     )
     
     # Entity extraction system prompt
-    template_registry.register_template(
-        "entity_extraction_system",
+    template_registry.register(
         PromptTemplate(
+            name="entity_extraction_system",
             template="""
             You are an entity extraction assistant specialized in named entity recognition.
             Extract entities from the provided text and categorize them by type.
@@ -125,24 +120,22 @@ def initialize_templates():
             
             Only extract entity types specified in the entity_types list, if provided.
             Otherwise, extract all entities you can identify.
-            """,
-            output_format=OutputFormat.JSON
+            """
         )
     )
     
     # Relationship inference template
-    template_registry.register_template(
-        "relationship_inference",
+    template_registry.register(
         PromptTemplate(
-            template="Relationship types to infer: {relationship_types}\n\nEntities: {entities_json}",
-            output_format=OutputFormat.JSON
+            name="relationship_inference",
+            template="Relationship types to infer: {relationship_types}\n\nEntities: {entities_json}"
         )
     )
     
     # Relationship inference system prompt
-    template_registry.register_template(
-        "relationship_inference_system",
+    template_registry.register(
         PromptTemplate(
+            name="relationship_inference_system",
             template="""
             You are a knowledge relationship inference assistant.
             Analyze the provided entities and identify potential relationships between them.
@@ -168,33 +161,30 @@ def initialize_templates():
             
             Only infer relationship types specified in the relationship_types list, if provided.
             Otherwise, infer all relationships you can identify.
-            """,
-            output_format=OutputFormat.JSON
+            """
         )
     )
     
     # Entity explanation template
-    template_registry.register_template(
-        "entity_explanation",
+    template_registry.register(
         PromptTemplate(
-            template="Generate an explanation for entity: {entity_name} (ID: {entity_id})\n\nContext: {context_json}",
-            output_format=OutputFormat.TEXT
+            name="entity_explanation",
+            template="Generate an explanation for entity: {entity_name} (ID: {entity_id})\n\nContext: {context_json}"
         )
     )
     
     # Query translation template
-    template_registry.register_template(
-        "query_translation",
+    template_registry.register(
         PromptTemplate(
-            template="Natural language query: {query}\n\nGraph schema: {schema_json}",
-            output_format=OutputFormat.JSON
+            name="query_translation",
+            template="Natural language query: {query}\n\nGraph schema: {schema_json}"
         )
     )
     
     # Query translation system prompt
-    template_registry.register_template(
-        "query_translation_system",
+    template_registry.register(
         PromptTemplate(
+            name="query_translation_system",
             template="""
             You are a knowledge graph query translator.
             Translate the natural language query into a Cypher query for Neo4j.
@@ -206,8 +196,7 @@ def initialize_templates():
             1. cypher_query: The translated Cypher query
             2. parameters: Any parameters for the query
             3. explanation: Brief explanation of what the query does
-            """,
-            output_format=OutputFormat.JSON
+            """
         )
     )
 
@@ -283,7 +272,7 @@ async def knowledge_chat(request: KnowledgeChatRequest):
         )
         
         # Get knowledge chat template
-        template = template_registry.get_template("knowledge_chat")
+        template = template_registry.get("knowledge_chat")
         
         # Format template values
         template_values = {
@@ -291,7 +280,7 @@ async def knowledge_chat(request: KnowledgeChatRequest):
         }
         
         # Generate system prompt
-        system_prompt = template.format(**template_values)
+        system_prompt = template.render(**template_values)
         
         # Set LLM settings
         llm_settings = LLMSettings(
@@ -351,7 +340,7 @@ async def stream_knowledge_chat(request: KnowledgeChatRequest, background_tasks:
             )
             
             # Get knowledge chat template
-            template = template_registry.get_template("knowledge_chat")
+            template = template_registry.get("knowledge_chat")
             
             # Format template values
             template_values = {
@@ -359,7 +348,7 @@ async def stream_knowledge_chat(request: KnowledgeChatRequest, background_tasks:
             }
             
             # Generate system prompt
-            system_prompt = template.format(**template_values)
+            system_prompt = template.render(**template_values)
             
             # Set LLM settings
             llm_settings = LLMSettings(
@@ -434,8 +423,8 @@ async def extract_entities(request: EntityExtractionRequest):
     
     try:
         # Get entity extraction template and system prompt
-        template = template_registry.get_template("entity_extraction")
-        system_template = template_registry.get_template("entity_extraction_system")
+        template = template_registry.get("entity_extraction")
+        system_template = template_registry.get("entity_extraction_system")
         
         # Format template values
         entity_types_str = ", ".join(request.entity_types) if request.entity_types else "all"
@@ -445,8 +434,8 @@ async def extract_entities(request: EntityExtractionRequest):
         }
         
         # Generate prompt and system prompt
-        prompt = template.format(**template_values)
-        system_prompt = system_template.format()
+        prompt = template.render(**template_values)
+        system_prompt = system_template.render()
         
         # Set LLM settings
         llm_settings = LLMSettings(
@@ -515,8 +504,8 @@ async def infer_relationships(request: RelationshipInferenceRequest):
             raise HTTPException(status_code=400, detail="No valid entities found")
         
         # Get relationship inference templates
-        template = template_registry.get_template("relationship_inference")
-        system_template = template_registry.get_template("relationship_inference_system")
+        template = template_registry.get("relationship_inference")
+        system_template = template_registry.get("relationship_inference_system")
         
         # Format template values
         relationship_types_str = ", ".join(request.relationship_types) if request.relationship_types else "all"
@@ -527,8 +516,8 @@ async def infer_relationships(request: RelationshipInferenceRequest):
         }
         
         # Generate prompt and system prompt
-        prompt = template.format(**template_values)
-        system_prompt = system_template.format()
+        prompt = template.render(**template_values)
+        system_prompt = system_template.render()
         
         # Set LLM settings
         llm_settings = LLMSettings(
@@ -608,7 +597,7 @@ async def explain_entity(entity_id: str, model: str = None, provider: str = None
         }
         
         # Get entity explanation template
-        template = template_registry.get_template("entity_explanation")
+        template = template_registry.get("entity_explanation")
         
         # Format template values
         template_values = {
@@ -618,7 +607,7 @@ async def explain_entity(entity_id: str, model: str = None, provider: str = None
         }
         
         # Generate prompt
-        prompt = template.format(**template_values)
+        prompt = template.render(**template_values)
         
         # Set LLM settings
         llm_settings = LLMSettings(
@@ -660,8 +649,8 @@ async def translate_query(query: str, model: str = None, provider: str = None):
         schema = await engine.get_schema()
         
         # Get query translation templates
-        template = template_registry.get_template("query_translation")
-        system_template = template_registry.get_template("query_translation_system")
+        template = template_registry.get("query_translation")
+        system_template = template_registry.get("query_translation_system")
         
         # Format template values
         template_values = {
@@ -670,8 +659,8 @@ async def translate_query(query: str, model: str = None, provider: str = None):
         }
         
         # Generate prompt and system prompt
-        prompt = template.format(**template_values)
-        system_prompt = system_template.format()
+        prompt = template.render(**template_values)
+        system_prompt = system_template.render()
         
         # Set LLM settings
         llm_settings = LLMSettings(

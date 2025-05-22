@@ -5,7 +5,7 @@ Provides Pydantic models for LLM-powered knowledge graph operations.
 """
 
 from typing import Dict, List, Any, Optional, Union
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ConfigDict
 from datetime import datetime
 
 from athena.core.entity import Entity
@@ -26,6 +26,10 @@ class KnowledgeContextResponse(BaseModel):
     entities: List[Entity] = Field(default_factory=list, description="Relevant entities")
     relationships: List[Relationship] = Field(default_factory=list, description="Relevant relationships")
     context: Dict[str, Any] = Field(default_factory=dict, description="Structured context for LLM")
+    
+    model_config = ConfigDict(arbitrary_types_allowed=True)
+    # Removed old Config class
+
 
 
 class KnowledgeChatRequest(BaseModel):
@@ -45,6 +49,10 @@ class KnowledgeChatResponse(BaseModel):
     answer: str = Field(..., description="The LLM-generated answer")
     entities: List[Entity] = Field(default_factory=list, description="Entities mentioned in the answer")
     context_entities: List[Entity] = Field(default_factory=list, description="All context entities")
+    
+    model_config = ConfigDict(arbitrary_types_allowed=True)
+    # Removed old Config class
+
 
 
 class EntityExtractionRequest(BaseModel):
@@ -62,6 +70,10 @@ class EntityExtractionResponse(BaseModel):
     text: str = Field(..., description="The original text")
     entities: List[Entity] = Field(default_factory=list, description="Extracted entities")
     raw_extraction: Dict[str, Any] = Field(default_factory=dict, description="Raw extraction result")
+    
+    model_config = ConfigDict(arbitrary_types_allowed=True)
+    # Removed old Config class
+
 
 
 class RelationshipInferenceRequest(BaseModel):
@@ -79,6 +91,10 @@ class RelationshipInferenceResponse(BaseModel):
     entity_ids: List[str] = Field(..., description="The original entity IDs")
     relationships: List[Relationship] = Field(default_factory=list, description="Inferred relationships")
     raw_inference: Dict[str, Any] = Field(default_factory=dict, description="Raw inference result")
+    
+    model_config = ConfigDict(arbitrary_types_allowed=True)
+    # Removed old Config class
+
 
 
 class QueryTranslationRequest(BaseModel):

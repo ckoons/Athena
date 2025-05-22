@@ -12,9 +12,9 @@ from tekton.mcp.fastmcp.schema import MCPCapability
 class KnowledgeGraphCapability(MCPCapability):
     """Capability for knowledge graph management and entity operations."""
     
-    name = "knowledge_graph"
-    description = "Manage entities, relationships, and knowledge structures"
-    version = "1.0.0"
+    name: str = "knowledge_graph"
+    description: str = "Manage entities, relationships, and knowledge structures"
+    version: str = "1.0.0"
     
     @classmethod
     def get_supported_operations(cls) -> List[str]:
@@ -51,9 +51,9 @@ class KnowledgeGraphCapability(MCPCapability):
 class QueryEngineCapability(MCPCapability):
     """Capability for advanced querying and graph analysis."""
     
-    name = "query_engine"
-    description = "Execute complex queries and analyze knowledge graphs"
-    version = "1.0.0"
+    name: str = "query_engine"
+    description: str = "Execute complex queries and analyze knowledge graphs"
+    version: str = "1.0.0"
     
     @classmethod
     def get_supported_operations(cls) -> List[str]:
@@ -88,9 +88,9 @@ class QueryEngineCapability(MCPCapability):
 class VisualizationCapability(MCPCapability):
     """Capability for knowledge graph visualization and export."""
     
-    name = "visualization"
-    description = "Create visualizations and export knowledge graphs"
-    version = "1.0.0"
+    name: str = "visualization"
+    description: str = "Create visualizations and export knowledge graphs"
+    version: str = "1.0.0"
     
     @classmethod
     def get_supported_operations(cls) -> List[str]:
@@ -121,9 +121,9 @@ class VisualizationCapability(MCPCapability):
 class IntegrationCapability(MCPCapability):
     """Capability for integration with other Tekton components."""
     
-    name = "integration"
-    description = "Integrate with Hermes, Ergon, and other Tekton components"
-    version = "1.0.0"
+    name: str = "integration"
+    description: str = "Integrate with Hermes, Ergon, and other Tekton components"
+    version: str = "1.0.0"
     
     @classmethod
     def get_supported_operations(cls) -> List[str]:
