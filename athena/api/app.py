@@ -5,10 +5,20 @@ Main FastAPI application for Athena's REST API.
 Provides comprehensive knowledge graph functionality.
 """
 
+import os
+import sys
 import logging
+from datetime import datetime
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
+
+# Add shared utils to path
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../../../shared/utils')))
+try:
+    from health_check import create_health_response
+except ImportError:
+    create_health_response = None
 
 from .endpoints.knowledge_graph import router as knowledge_router
 from .endpoints.entities import router as entities_router
@@ -74,14 +84,27 @@ async def health():
     engine = await get_knowledge_engine()
     status = await engine.get_status()
     
-    if status["status"] == "initialized":
-        return {
-            "status": "healthy",
-            "details": status
-        }
+    health_status = "healthy" if status["status"] == "initialized" else "unhealthy"
+    
+    # Use standardized health response if available
+    if create_health_response:
+        return create_health_response(
+            component_name="athena",
+            port=8005,
+            version="1.0.0",
+            status=health_status,
+            registered=False,  # Will be updated when registration is implemented
+            details=status
+        )
     else:
+        # Fallback to manual format
         return {
-            "status": "unhealthy",
+            "status": health_status,
+            "version": "1.0.0",
+            "timestamp": datetime.now().isoformat(),
+            "component": "athena",
+            "port": 8005,
+            "registered_with_hermes": False,
             "details": status
         }
 
