@@ -90,11 +90,20 @@ async def root():
 @app.get("/health")
 async def health():
     """Health check endpoint."""
-    engine = await get_knowledge_engine()
-    status = await engine.get_status()
-    
-    health_status = "healthy" if status["status"] == "initialized" else "unhealthy"
-    
+    try:
+        engine = await get_knowledge_engine()
+        if engine:
+            status = await engine.get_status()
+            health_status = "healthy" if status["status"] == "initialized" else "unhealthy"
+            details = status
+        else:
+            health_status = "starting"
+            details = {"status": "starting", "message": "Knowledge engine initializing"}
+    except Exception as e:
+        logger.warning(f"Knowledge engine not ready: {e}")
+        health_status = "starting"
+        details = {"status": "starting", "message": "Knowledge engine initializing"}
+
     # Use standardized health response if available
     if create_health_response:
         return create_health_response(
@@ -103,7 +112,7 @@ async def health():
             version="1.0.0",
             status=health_status,
             registered=is_registered_with_hermes,
-            details=status
+            details=details
         )
     else:
         # Fallback to manual format
@@ -191,3 +200,17 @@ async def shutdown_event():
             await engine.shutdown()
     except Exception as e:
         logger.error(f"Error shutting down knowledge engine: {e}")
+
+if __name__ == "__main__":
+    import argparse
+    import uvicorn
+
+    parser = argparse.ArgumentParser(description="Athena Knowledge Graph API Server")
+    parser.add_argument("--port", type=int, default=int(os.environ.get("ATHENA_PORT", 8005)),
+                       help="Port to run the server on")
+    parser.add_argument("--host", type=str, default="localhost",
+                       help="Host to bind the server to")
+    args = parser.parse_args()
+
+    logger.info(f"Starting Athena server on {args.host}:{args.port}")
+    uvicorn.run(app, host=args.host, port=args.port)
