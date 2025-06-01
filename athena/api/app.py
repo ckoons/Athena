@@ -19,17 +19,27 @@ tekton_root = os.path.abspath(os.path.join(os.path.dirname(__file__), "../../.."
 if tekton_root not in sys.path:
     sys.path.append(tekton_root)
 
-# Set up logger early
+# Configure logging
+logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("athena.api")
 
 # Import shared utils
 try:
     from shared.utils.health_check import create_health_response
     from shared.utils.hermes_registration import HermesRegistration, heartbeat_loop
+    from shared.utils.logging_setup import setup_component_logger
+    from shared.utils.env_config import get_component_config
+    from shared.utils.errors import StartupError
 except ImportError as e:
     logger.warning(f"Could not import shared utils: {e}")
     create_health_response = None
     HermesRegistration = None
+    setup_component_logger = None
+    get_component_config = None
+
+# Use shared logger if available
+if setup_component_logger:
+    logger = setup_component_logger("athena")
 
 from .endpoints.knowledge_graph import router as knowledge_router
 from .endpoints.entities import router as entities_router
@@ -136,7 +146,16 @@ async def startup_event():
     """Initialize knowledge engine on startup."""
     global is_registered_with_hermes, hermes_registration, heartbeat_task
     
+    logger.info("Starting Athena Knowledge Graph API")
+    
     try:
+        # Get configuration
+        if get_component_config:
+            config = get_component_config()
+            port = config.athena.port
+        else:
+            port = int(os.environ.get("ATHENA_PORT", 8005))
+        
         engine = await get_knowledge_engine()
         if not engine.is_initialized:
             await engine.initialize()
@@ -157,7 +176,7 @@ async def startup_event():
             hermes_registration = HermesRegistration()
             is_registered_with_hermes = await hermes_registration.register_component(
                 component_name="athena",
-                port=8005,
+                port=port,
                 version="1.0.0",
                 capabilities=[
                     "knowledge_graph_management",
@@ -181,11 +200,15 @@ async def startup_event():
                 
     except Exception as e:
         logger.error(f"Error initializing knowledge engine: {e}")
+        if StartupError:
+            raise StartupError(str(e), "athena", "INIT_FAILED")
 
 @app.on_event("shutdown")
 async def shutdown_event():
     """Shutdown knowledge engine on application shutdown."""
     global heartbeat_task
+    
+    logger.info("Shutting down Athena Knowledge Graph API")
     
     # Cancel heartbeat task
     if heartbeat_task:
@@ -198,11 +221,13 @@ async def shutdown_event():
     # Deregister from Hermes
     if hermes_registration and is_registered_with_hermes:
         await hermes_registration.deregister("athena")
+        logger.info("Deregistered from Hermes")
     
     try:
         engine = await get_knowledge_engine()
         if engine.is_initialized:
             await engine.shutdown()
+            logger.info("Knowledge engine shut down successfully")
     except Exception as e:
         logger.error(f"Error shutting down knowledge engine: {e}")
 
@@ -213,9 +238,11 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Athena Knowledge Graph API Server")
     parser.add_argument("--port", type=int, default=int(os.environ.get("ATHENA_PORT", 8005)),
                        help="Port to run the server on")
-    parser.add_argument("--host", type=str, default="localhost",
+    parser.add_argument("--host", type=str, default="0.0.0.0",
                        help="Host to bind the server to")
+    parser.add_argument("--reload", action="store_true",
+                       help="Enable auto-reload for development")
     args = parser.parse_args()
 
     logger.info(f"Starting Athena server on {args.host}:{args.port}")
-    uvicorn.run(app, host=args.host, port=args.port)
+    uvicorn.run(app, host=args.host, port=args.port, reload=args.reload)
