@@ -25,7 +25,6 @@ fi
 cd "$SCRIPT_DIR"
 
 # Set environment variables
-export ATHENA_PORT=8005
 export PYTHONPATH="$SCRIPT_DIR:$TEKTON_ROOT:$PYTHONPATH"
 
 # Create log directories
