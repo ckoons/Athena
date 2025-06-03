@@ -52,7 +52,7 @@ sleep 2
 
 # Start the Athena service
 echo -e "${YELLOW}Starting Athena API server...${RESET}"
-python -m athena.api.app --port $ATHENA_PORT > "$HOME/.tekton/logs/athena.log" 2>&1 &
+python -m athena > "$HOME/.tekton/logs/athena.log" 2>&1 &
 ATHENA_PID=$!
 
 # Trap signals for graceful shutdown

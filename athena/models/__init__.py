@@ -3,16 +3,17 @@ Data models for Athena.
 """
 
 from typing import Dict, Any, List, Optional, Set
-from pydantic import BaseModel, Field
+from pydantic import Field, ConfigDict
+from tekton.models import TektonBaseModel
 
 from athena.core.entity import Entity
 
 
-class EntityModel(BaseModel):
+class EntityModel(TektonBaseModel):
     """Pydantic model wrapper for Entity class"""
     
     entity: Entity = Field(...)
     
-    class Config:
-        """Model configuration."""
-        arbitrary_types_allowed = True
+    model_config = ConfigDict(
+        arbitrary_types_allowed=True
+    )

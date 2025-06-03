@@ -5,12 +5,13 @@ These models define the request and response data structures for entity operatio
 """
 
 from typing import Dict, List, Any, Optional, Set, Union
-from pydantic import BaseModel, Field
+from pydantic import Field
+from tekton.models import TektonBaseModel
 from datetime import datetime
 
 from athena.core.entity import Entity
 
-class EntityBase(BaseModel):
+class EntityBase(TektonBaseModel):
     """Base model for entity data."""
     name: str = Field(..., description="Entity name")
     entity_type: str = Field(..., description="Entity type")
@@ -69,13 +70,13 @@ class EntityResponse(EntityBase):
             updated_at=entity.updated_at
         )
 
-class EntitySearchResult(BaseModel):
+class EntitySearchResult(TektonBaseModel):
     """Search result for entities."""
     results: List[EntityResponse] = Field(..., description="List of matching entities")
     total: int = Field(..., description="Total number of results")
     query: str = Field(..., description="Original search query")
 
-class EntityMergeRequest(BaseModel):
+class EntityMergeRequest(TektonBaseModel):
     """Request for merging entities."""
     source_entities: List[str] = Field(
         ..., 

@@ -5,13 +5,15 @@ Provides Pydantic models for LLM-powered knowledge graph operations.
 """
 
 from typing import Dict, List, Any, Optional, Union
-from pydantic import BaseModel, Field, ConfigDict
+from pydantic import Field
+from pydantic import ConfigDict
+from tekton.models import TektonBaseModel
 from datetime import datetime
 
 from athena.core.entity import Entity
 from athena.core.relationship import Relationship
 
-class KnowledgeContextRequest(BaseModel):
+class KnowledgeContextRequest(TektonBaseModel):
     """Request model for retrieving knowledge context."""
     
     query: str = Field(..., description="The query to get knowledge context for")
@@ -19,7 +21,7 @@ class KnowledgeContextRequest(BaseModel):
     min_confidence: Optional[float] = Field(0.7, description="Minimum confidence threshold for relevance")
 
 
-class KnowledgeContextResponse(BaseModel):
+class KnowledgeContextResponse(TektonBaseModel):
     """Response model for knowledge context."""
     
     query: str = Field(..., description="The original query")
@@ -32,7 +34,7 @@ class KnowledgeContextResponse(BaseModel):
 
 
 
-class KnowledgeChatRequest(BaseModel):
+class KnowledgeChatRequest(TektonBaseModel):
     """Request model for knowledge-enhanced chat."""
     
     query: str = Field(..., description="The user's query")
@@ -42,7 +44,7 @@ class KnowledgeChatRequest(BaseModel):
     provider: Optional[str] = Field(None, description="LLM provider to use")
 
 
-class KnowledgeChatResponse(BaseModel):
+class KnowledgeChatResponse(TektonBaseModel):
     """Response model for knowledge-enhanced chat."""
     
     query: str = Field(..., description="The original query")
@@ -55,7 +57,7 @@ class KnowledgeChatResponse(BaseModel):
 
 
 
-class EntityExtractionRequest(BaseModel):
+class EntityExtractionRequest(TektonBaseModel):
     """Request model for entity extraction."""
     
     text: str = Field(..., description="The text to extract entities from")
@@ -64,7 +66,7 @@ class EntityExtractionRequest(BaseModel):
     provider: Optional[str] = Field(None, description="LLM provider to use")
 
 
-class EntityExtractionResponse(BaseModel):
+class EntityExtractionResponse(TektonBaseModel):
     """Response model for entity extraction."""
     
     text: str = Field(..., description="The original text")
@@ -76,7 +78,7 @@ class EntityExtractionResponse(BaseModel):
 
 
 
-class RelationshipInferenceRequest(BaseModel):
+class RelationshipInferenceRequest(TektonBaseModel):
     """Request model for relationship inference."""
     
     entity_ids: List[str] = Field(..., description="IDs of entities to infer relationships between")
@@ -85,7 +87,7 @@ class RelationshipInferenceRequest(BaseModel):
     provider: Optional[str] = Field(None, description="LLM provider to use")
 
 
-class RelationshipInferenceResponse(BaseModel):
+class RelationshipInferenceResponse(TektonBaseModel):
     """Response model for relationship inference."""
     
     entity_ids: List[str] = Field(..., description="The original entity IDs")
@@ -97,7 +99,7 @@ class RelationshipInferenceResponse(BaseModel):
 
 
 
-class QueryTranslationRequest(BaseModel):
+class QueryTranslationRequest(TektonBaseModel):
     """Request model for natural language query translation."""
     
     query: str = Field(..., description="The natural language query to translate")
@@ -105,7 +107,7 @@ class QueryTranslationRequest(BaseModel):
     provider: Optional[str] = Field(None, description="LLM provider to use")
 
 
-class QueryTranslationResponse(BaseModel):
+class QueryTranslationResponse(TektonBaseModel):
     """Response model for query translation."""
     
     natural_query: str = Field(..., description="The original natural language query")

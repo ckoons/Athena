@@ -5,11 +5,12 @@ These models define the request and response data structures for query operation
 """
 
 from typing import Dict, List, Any, Optional, Union, Literal
-from pydantic import BaseModel, Field
+from pydantic import Field
+from tekton.models import TektonBaseModel
 
 from tekton.core.query.modes import QueryMode
 
-class QueryRequest(BaseModel):
+class QueryRequest(TektonBaseModel):
     """Request model for query execution."""
     question: str = Field(..., description="The query to execute")
     mode: QueryMode = Field(
@@ -57,7 +58,7 @@ class QueryRequest(BaseModel):
         description="If True, includes raw results in the response"
     )
 
-class QueryResponse(BaseModel):
+class QueryResponse(TektonBaseModel):
     """Response model for query execution."""
     question: str = Field(..., description="Original query")
     mode: str = Field(..., description="Retrieval mode used")

@@ -5,7 +5,9 @@ Provides Pydantic models for graph visualization requests and responses.
 """
 
 from typing import Dict, List, Any, Optional, Union
-from pydantic import BaseModel, Field, ConfigDict
+from pydantic import Field
+from pydantic import ConfigDict
+from tekton.models import TektonBaseModel
 from enum import Enum
 from datetime import datetime
 
@@ -21,7 +23,7 @@ class VisualizationLayout(str, Enum):
     radial = "radial"
 
 
-class GraphVisualizationRequest(BaseModel):
+class GraphVisualizationRequest(TektonBaseModel):
     """Request model for custom graph visualization."""
     
     query: Optional[str] = Field(None, description="Search query for entities")
@@ -34,7 +36,7 @@ class GraphVisualizationRequest(BaseModel):
     layout: Optional[VisualizationLayout] = Field(VisualizationLayout.force_directed, description="Graph layout algorithm")
 
 
-class GraphVisualizationResponse(BaseModel):
+class GraphVisualizationResponse(TektonBaseModel):
     """Response model for graph visualization data."""
     
     entities: List[Entity] = Field(default_factory=list, description="Entities in the visualization")
@@ -44,7 +46,7 @@ class GraphVisualizationResponse(BaseModel):
     model_config = ConfigDict(arbitrary_types_allowed=True)
 
 
-class SubgraphRequest(BaseModel):
+class SubgraphRequest(TektonBaseModel):
     """Request model for subgraph visualization."""
     
     center_entity_id: str = Field(..., description="ID of entity to center subgraph around")
@@ -54,7 +56,7 @@ class SubgraphRequest(BaseModel):
     layout: VisualizationLayout = Field(VisualizationLayout.force_directed, description="Graph layout algorithm")
 
 
-class SubgraphResponse(BaseModel):
+class SubgraphResponse(TektonBaseModel):
     """Response model for subgraph visualization."""
     
     center_entity_id: str = Field(..., description="ID of the central entity")
@@ -76,7 +78,7 @@ class ExportFormat(str, Enum):
     svg = "svg"
 
 
-class ExportRequest(BaseModel):
+class ExportRequest(TektonBaseModel):
     """Request model for graph export."""
     
     entities: List[str] = Field(default_factory=list, description="Entity IDs to include in export")
