@@ -250,17 +250,12 @@ async def health():
 
 
 if __name__ == "__main__":
-    import argparse
-    import uvicorn
-
-    parser = argparse.ArgumentParser(description="Athena Knowledge Graph API Server")
-    parser.add_argument("--port", type=int, default=int(os.environ.get("ATHENA_PORT", 8005)),
-                       help="Port to run the server on")
-    parser.add_argument("--host", type=str, default="0.0.0.0",
-                       help="Host to bind the server to")
-    parser.add_argument("--reload", action="store_true",
-                       help="Enable auto-reload for development")
-    args = parser.parse_args()
-
-    logger.info(f"Starting Athena server on {args.host}:{args.port}")
-    uvicorn.run(app, host=args.host, port=args.port, reload=args.reload)
+    from shared.utils.socket_server import run_component_server
+    
+    port = int(os.environ.get("ATHENA_PORT"))
+    run_component_server(
+        component_name="athena",
+        app_module="athena.api.app",
+        default_port=port,
+        reload=False
+    )
