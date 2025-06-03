@@ -184,12 +184,6 @@ app.include_router(visualization_router)
 app.include_router(llm_router)
 app.include_router(mcp_router)  # Add MCP router
 
-# Add shutdown endpoint
-try:
-    from shared.utils.shutdown_endpoint import add_shutdown_endpoint_to_app
-    add_shutdown_endpoint_to_app(app, "athena")
-except ImportError:
-    logger.warning("Shutdown endpoint module not available")
 
 @app.exception_handler(Exception)
 async def global_exception_handler(request: Request, exc: Exception):
