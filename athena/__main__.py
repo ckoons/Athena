@@ -11,7 +11,7 @@ from shared.utils.socket_server import run_component_server
 
 if __name__ == "__main__":
     # Get port from environment variable
-    default_port = int(os.environ.get("ATHENA_PORT"))
+    default_port = int(os.environ.get("ATHENA_PORT", 8005))
     
     run_component_server(
         component_name="athena",
