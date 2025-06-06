@@ -675,18 +675,18 @@ def get_all_tools(knowledge_engine=None):
     tools = []
     
     # Entity management tools
-    tools.append(MCPTool.from_dict(search_entities._mcp_tool_meta.to_dict()))
-    tools.append(MCPTool.from_dict(get_entity_by_id._mcp_tool_meta.to_dict()))
-    tools.append(MCPTool.from_dict(get_entity_relationships._mcp_tool_meta.to_dict()))
-    tools.append(MCPTool.from_dict(find_entity_paths._mcp_tool_meta.to_dict()))
-    tools.append(MCPTool.from_dict(merge_entities._mcp_tool_meta.to_dict()))
+    tools.append(search_entities._mcp_tool_meta.to_dict())
+    tools.append(get_entity_by_id._mcp_tool_meta.to_dict())
+    tools.append(get_entity_relationships._mcp_tool_meta.to_dict())
+    tools.append(find_entity_paths._mcp_tool_meta.to_dict())
+    tools.append(merge_entities._mcp_tool_meta.to_dict())
     
     # Query tools
-    tools.append(MCPTool.from_dict(query_knowledge_graph._mcp_tool_meta.to_dict()))
-    tools.append(MCPTool.from_dict(naive_query._mcp_tool_meta.to_dict()))
-    tools.append(MCPTool.from_dict(local_query._mcp_tool_meta.to_dict()))
-    tools.append(MCPTool.from_dict(global_query._mcp_tool_meta.to_dict()))
-    tools.append(MCPTool.from_dict(hybrid_query._mcp_tool_meta.to_dict()))
+    tools.append(query_knowledge_graph._mcp_tool_meta.to_dict())
+    tools.append(naive_query._mcp_tool_meta.to_dict())
+    tools.append(local_query._mcp_tool_meta.to_dict())
+    tools.append(global_query._mcp_tool_meta.to_dict())
+    tools.append(hybrid_query._mcp_tool_meta.to_dict())
     
     return tools
 

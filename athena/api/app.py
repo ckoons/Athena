@@ -58,6 +58,7 @@ is_registered_with_hermes = False
 hermes_registration = None
 heartbeat_task = None
 start_time = None
+mcp_bridge = None
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -92,8 +93,17 @@ async def lifespan(app: FastAPI):
                     MCPClient
                 )
                 logger.info("FastMCP is available and initialized")
+                
+                # Initialize Hermes MCP Bridge
+                from athena.core.mcp.hermes_bridge import AthenaMCPBridge
+                global mcp_bridge
+                mcp_bridge = AthenaMCPBridge(engine)
+                await mcp_bridge.initialize()
+                logger.info("Initialized Hermes MCP Bridge for FastMCP tools")
             except ImportError:
                 logger.warning("FastMCP is not available - MCP functionality will be limited")
+            except Exception as e:
+                logger.error(f"Failed to initialize MCP Bridge: {e}")
             
             # Register with Hermes
             global is_registered_with_hermes, hermes_registration, heartbeat_task
@@ -165,8 +175,19 @@ async def lifespan(app: FastAPI):
         except Exception as e:
             logger.warning(f"Error cleaning up knowledge engine: {e}")
     
+    async def cleanup_mcp_bridge():
+        """Cleanup MCP bridge"""
+        global mcp_bridge
+        if mcp_bridge:
+            try:
+                await mcp_bridge.shutdown()
+                logger.info("MCP bridge cleaned up")
+            except Exception as e:
+                logger.warning(f"Error cleaning up MCP bridge: {e}")
+    
     shutdown.register_cleanup(cleanup_hermes)
     shutdown.register_cleanup(cleanup_engine)
+    shutdown.register_cleanup(cleanup_mcp_bridge)
     
     yield
     
