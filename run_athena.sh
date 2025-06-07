@@ -29,7 +29,8 @@ source "$TEKTON_ROOT/shared/utils/setup_env.sh"
 setup_tekton_env "$SCRIPT_DIR" "$TEKTON_ROOT"
 
 # Create log directories
-mkdir -p "$HOME/.tekton/logs"
+LOG_DIR="${TEKTON_LOG_DIR:-$TEKTON_ROOT/.tekton/logs}"
+mkdir -p "$LOG_DIR"
 
 # Error handling function
 handle_error() {
@@ -53,7 +54,7 @@ sleep 2
 
 # Start the Athena service
 echo -e "${YELLOW}Starting Athena API server...${RESET}"
-python -m athena > "$HOME/.tekton/logs/athena.log" 2>&1 &
+python -m athena > "$LOG_DIR/athena.log" 2>&1 &
 ATHENA_PID=$!
 
 # Trap signals for graceful shutdown
@@ -72,7 +73,7 @@ for i in {1..30}; do
     # Check if the process is still running
     if ! kill -0 $ATHENA_PID 2>/dev/null; then
         echo -e "${RED}Athena process terminated unexpectedly${RESET}"
-        cat "$HOME/.tekton/logs/athena.log"
+        cat "$LOG_DIR/athena.log"
         handle_error "Athena failed to start"
     fi
     
