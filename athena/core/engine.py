@@ -56,7 +56,15 @@ class KnowledgeEngine:
         Args:
             data_path: Path to store graph data (if using file-based adapter)
         """
-        self.data_path = data_path or os.path.expanduser("~/.tekton/data/athena")
+        if data_path:
+            self.data_path = data_path
+        else:
+            # Use $TEKTON_DATA_DIR/athena by default
+            self.data_path = os.path.join(
+                os.environ.get('TEKTON_DATA_DIR', 
+                              os.path.join(os.environ.get('TEKTON_ROOT', os.path.expanduser('~')), '.tekton', 'data')),
+                'athena'
+            )
         self.is_initialized = False
         self.adapter = None
         self.entity_manager = None
