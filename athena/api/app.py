@@ -77,7 +77,7 @@ async def lifespan(app: FastAPI):
         try:
             # Get configuration
             config = get_component_config()
-            port = config.athena.port if hasattr(config, 'athena') else int(os.environ.get("ATHENA_PORT", 8005))
+            port = config.athena.port if hasattr(config, 'athena') else int(os.environ.get("ATHENA_PORT"))
             
             # Initialize knowledge engine
             engine = await get_knowledge_engine()
@@ -239,9 +239,11 @@ async def health():
         details = {"status": "starting", "message": "Knowledge engine initializing"}
 
     # Use standardized health response
+    config = get_component_config()
+    port = config.athena.port if hasattr(config, 'athena') else int(os.environ.get("ATHENA_PORT"))
     return create_health_response(
         component_name="athena",
-        port=int(os.environ.get("ATHENA_PORT", 8005)),
+        port=port,
         version=COMPONENT_VERSION,
         status=health_status,
         registered=is_registered_with_hermes,
@@ -357,7 +359,8 @@ async def root():
 if __name__ == "__main__":
     from shared.utils.socket_server import run_component_server
     
-    port = int(os.environ.get("ATHENA_PORT"))
+    config = get_component_config()
+    port = config.athena.port if hasattr(config, 'athena') else int(os.environ.get("ATHENA_PORT"))
     run_component_server(
         component_name="athena",
         app_module="athena.api.app",

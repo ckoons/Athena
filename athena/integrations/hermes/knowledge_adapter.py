@@ -6,9 +6,17 @@ through the Hermes registration protocol and database services.
 """
 
 import os
+import sys
 import asyncio
 import logging
 from typing import Dict, Any, List, Optional, Union, Tuple
+
+# Add Tekton root to path for shared imports
+tekton_root = os.path.abspath(os.path.join(os.path.dirname(__file__), "../../../.."))
+if tekton_root not in sys.path:
+    sys.path.append(tekton_root)
+
+from shared.utils.env_config import get_component_config
 
 from ...core.entity import Entity
 from ...core.relationship import Relationship
@@ -77,7 +85,8 @@ class HermesKnowledgeAdapter:
             
         try:
             # Get component port from environment or use default
-            component_port = os.environ.get("ATHENA_PORT", "8005")
+            config = get_component_config()
+            component_port = config.athena.port if hasattr(config, 'athena') else int(os.environ.get("ATHENA_PORT"))
             
             # Define the component information
             component_info = {
